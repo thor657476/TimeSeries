@@ -46,7 +46,6 @@ update_step <- function(y, p11, p22, mu, sigma1, sigma2, xi) {
   n <- length(y)
   xi_t  <- matrix(NA_real_, nrow = n, ncol = 2)  # filtered probs
   ll_t  <- numeric(n)                             # per-period log-lik contributions
-  eps   <- 1e-300
   
   for (t in seq_len(n)) {
     # predict
@@ -57,7 +56,7 @@ update_step <- function(y, p11, p22, mu, sigma1, sigma2, xi) {
     eta2 <- dnorm(y[t], mean = mu, sd = sigma2)
     
     # predictive density for log-likelihood (use xi_pred, not xi)
-    ft   <- sum(xi_pred * c(eta1, eta2)) + eps
+    ft   <- sum(xi_pred * c(eta1, eta2))
     ll_t[t] <- log(ft)
     
     # update (filter)
