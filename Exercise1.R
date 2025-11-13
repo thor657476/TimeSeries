@@ -93,3 +93,15 @@ start <- c(p11, p22, mu, sigma_1, sigma_2)
 fit1 <- optim(start, nll_ms, y = y, xi0 = xi1)
 fit2 <- optim(start, nll_ms, y = y, xi0 = xi2)
 fit3 <- optim(start, nll_ms, y = y, xi0 = xi3)
+
+# Extract estimated p11 and p22 with initialisation in state 1
+p11_hat_1 <- fit1$par[1]
+p22_hat_1 <- fit1$par[2]
+
+# Calculate steady state probability of being in state 2: (1-p11)/(2-p11-p22)
+steady_state_2 <- (1-p11_hat_1) / (2-p11_hat_1-p22_hat_1)
+
+# Expected duration of a high volatility episode in quarters (to get in years, divide by 4)
+expected_duration_2 <- 1 / (1 - p22_hat_1)
+
+# 1-step ahead OOS forecast
