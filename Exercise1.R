@@ -21,7 +21,11 @@ nll <- function(par, y) {
 
 start <- c(mu, sigma_1, sigma_2, p1)
 
-mle <- optim(par = start, fn = nll, y = y)
+mle <- optim(par = start, fn = nll, y = y,
+             method = "L-BFGS-B", #deze moeten we ff want anders kan je die bounds er niet op zetten
+             lower = c(-Inf, 0, 0, 0),      
+             upper = c( Inf,  Inf,  Inf, 1)
+             )
 
 # calculate P(s_t=2|y_t=0)
 mu_hat  <- mle$par[1]
@@ -33,7 +37,6 @@ y0 <- 0
 num <- (1 - p1_hat) * dnorm(y0, mean = mu_hat, sd = s2_hat)
 den <- p1_hat * dnorm(y0, mean = mu_hat, sd = s1_hat) + num
 prob <- as.numeric(num / den)
-
 
 
 
@@ -87,13 +90,19 @@ nll_ms <- function(par, y, xi0) {
   -res$logLik
 }
 
+# bounds
+lower <- c(0,    0,    -Inf, 1e-6, 1e-6)
+upper <- c(1,    1,     Inf,  Inf,  Inf)
+
 # start params
 start <- c(p11, p22, mu, sigma_1, sigma_2)
 
-fit1 <- optim(start, nll_ms, y = y, xi0 = xi1)
-fit2 <- optim(start, nll_ms, y = y, xi0 = xi2)
-fit3 <- optim(start, nll_ms, y = y, xi0 = xi3)
+fit1 <- optim(start, nll_ms, y = y, xi0 = xi1, method = "L-BFGS-B", lower = lower, upper = upper)
+fit2 <- optim(start, nll_ms, y = y, xi0 = xi2, method = "L-BFGS-B", lower = lower, upper = upper)
+fit3 <- optim(start, nll_ms, y = y, xi0 = xi3, method = "L-BFGS-B", lower = lower, upper = upper)
 
+
+# QUESTION 1c -------------------------------------------------------------
 # Extract estimated p11 and p22 with initialisation in state 1
 p11_hat_1 <- fit1$par[1]
 p22_hat_1 <- fit1$par[2]
@@ -105,3 +114,11 @@ steady_state_2 <- (1-p11_hat_1) / (2-p11_hat_1-p22_hat_1)
 expected_duration_2 <- 1 / (1 - p22_hat_1)
 
 # 1-step ahead OOS forecast
+
+
+
+
+
+# QUESTION 1d -------------------------------------------------------------
+
+
