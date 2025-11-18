@@ -116,8 +116,4 @@ P_T_T_hat
 
 
 # QUESTION 2c -------------------------------------------------------------
-c <- estimation_data$c
-mu_c <- mean(c)
-y_2 <- c - mu_c
 
-Y <- cbind(y_1, y_2)
