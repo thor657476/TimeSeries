@@ -122,8 +122,54 @@ print(steady_state_2)
 # Expected duration of a high volatility episode in quarters (to get in years, divide by 4)
 expected_duration_2 <- 1 / (1 - p22_hat_1)
 print(expected_duration_2)
-# 1-step ahead OOS forecast
+# === 1-step ahead out-of-sample forecast (init in state 1) ===
 
+# Estimated parameters from fit1 (initialisation in state 1)
+p11_hat   <- fit1$par[1]
+p22_hat   <- fit1$par[2]
+mu_hat    <- fit1$par[3]
+sigma1_hat <- fit1$par[4]
+sigma2_hat <- fit1$par[5]
+
+# Run Hamilton filter once more to get filtered probs up to T
+xi0 <- c(1, 0)  # start in state 1
+res_filter <- update_step(
+  y      = y,
+  p11    = p11_hat,
+  p22    = p22_hat,
+  mu     = mu_hat,
+  sigma1 = sigma1_hat,
+  sigma2 = sigma2_hat,
+  xi     = xi0
+)
+
+T_est   <- length(y)
+xi_T_T  <- res_filter$xi_t[T_est, ]   # Xi_{T|T}
+
+# Transition matrix with estimated p's
+P_hat <- matrix(
+  c(p11_hat,      1 - p22_hat,
+    1 - p11_hat,  p22_hat),
+  nrow = 2
+)
+
+# Xi_{T+1|T} = P * Xi_{T|T}
+xi_T1_T <- as.numeric(P_hat %*% xi_T_T)
+
+# mu vector (same mean in both states)
+mu_vec <- c(mu_hat, mu_hat)
+
+# 1-step ahead forecast: (1 1)[ mu * Xi_{T+1|T} ]
+yhat_T1_T <- as.numeric(c(1, 1) %*% (mu_vec * xi_T1_T))
+
+# First out-of-sample (holdout) observation
+y_T1 <- holdout_data$y[1]
+
+# Forecast error: actual - forecast
+forecast_error_T1 <- y_T1 - yhat_T1_T
+
+print(yhat_T1_T)
+print(forecast_error_T1)
 
 
 # QUESTION 1d -------------------------------------------------------------
