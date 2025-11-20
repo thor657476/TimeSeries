@@ -244,6 +244,7 @@ q1_hat <- exp(opt_2c$par[8])
 q2_hat <- exp(opt_2c$par[9])
 
 # Print results
+# Ik weet niet welke idioot dit zo heeft geprint maar serieus onnodig wel (kusjes Thor)
 cat("h1 =", round(h1_hat, 4), "\n")
 cat("h2 =", round(h2_hat, 4), "\n")
 cat("f0 =", round(f0_hat, 4), "\n")
@@ -314,3 +315,208 @@ cat("\nMean Squared Forecast Error (MSFE) =", round(msfe_2c, 6), "\n")
 #r2_hat  = 3.4522
 #loglik  = -1309.5926
 #OOS MSFE (K=12, both series) = 8.0258
+
+
+# QUESTION 2d -------------------------------------------------------------
+
+# ff lekker kalman filtertje eroverheen
+kalman_filter_2d <- function(F_mat, Q, R, Y) {
+  d <- nrow(Y)
+  Tn <- ncol(Y)
+  
+  # diffuse initialisation
+  m_pred <- matrix(0, nrow = d, ncol = 1)      # xi_{1|0}
+  P_pred <- diag(d) * 1e6                      # P_{1|0}
+  
+  # storage
+  m_pred_all <- matrix(NA_real_, nrow = d, ncol = Tn)     # xi_{t|t-1}
+  P_pred_all <- array(NA_real_, dim = c(d, d, Tn))        # P_{t|t-1}
+  m_filt_all <- matrix(NA_real_, nrow = d, ncol = Tn)     # xi_{t|t}
+  P_filt_all <- array(NA_real_, dim = c(d, d, Tn))        # P_{t|t}
+  
+  loglik <- 0
+  
+  for (t in 1:Tn) {
+    y_t <- Y[, t, drop = FALSE]
+    
+    # H = I_d
+    y_pred <- m_pred
+    v_t    <- y_t - y_pred
+    S_t    <- P_pred + R   # HPH'+R, but H=I
+    
+    S_inv <- solve(S_t)
+    
+    # log-likelihood contribution
+    loglik <- loglik - 0.5 * (
+      d * log(2 * pi) + log(det(S_t)) + t(v_t) %*% S_inv %*% v_t
+    )
+    
+    # Kalman gain and update
+    K_t    <- P_pred %*% S_inv
+    m_filt <- m_pred + K_t %*% v_t
+    P_filt <- (diag(d) - K_t) %*% P_pred
+    P_filt <- 0.5 * (P_filt + t(P_filt))  # symmetrise
+    
+    # store
+    m_pred_all[, t] <- m_pred
+    P_pred_all[, , t] <- P_pred
+    m_filt_all[, t]   <- m_filt
+    P_filt_all[, , t] <- P_filt
+    
+    # predict next
+    m_pred <- F_mat %*% m_filt
+    P_pred <- F_mat %*% P_filt %*% t(F_mat) + Q
+    P_pred <- 0.5 * (P_pred + t(P_pred))
+  }
+  
+  list(
+    loglik     = as.numeric(loglik),
+    m_pred_all = m_pred_all,
+    P_pred_all = P_pred_all,
+    m_filt_all = m_filt_all,
+    P_filt_all = P_filt_all
+  )
+}
+
+# smoothen we die zooi ook nog ff
+kalman_smoother_2d <- function(F_mat, Q, kf) {
+  m_pred_all <- kf$m_pred_all
+  P_pred_all <- kf$P_pred_all
+  m_filt_all <- kf$m_filt_all
+  P_filt_all <- kf$P_filt_all
+  
+  d  <- nrow(m_filt_all)
+  Tn <- ncol(m_filt_all)
+  
+  m_smooth <- matrix(NA_real_, nrow = d, ncol = Tn)
+  P_smooth <- array(NA_real_, dim = c(d, d, Tn))
+  
+  # initial (last) smoothed equals filtered
+  m_smooth[, Tn]   <- m_filt_all[, Tn]
+  P_smooth[, , Tn] <- P_filt_all[, , Tn]
+  
+  for (t in (Tn-1):1) {
+    P_pred_tp1 <- P_pred_all[, , t + 1]
+    P_filt_t   <- P_filt_all[, , t]
+    
+    J_t <- P_filt_t %*% t(F_mat) %*% solve(P_pred_tp1)  # smoother gain
+    
+    m_smooth[, t] <- m_filt_all[, t] + 
+      J_t %*% (m_smooth[, t + 1, drop = FALSE] - m_pred_all[, t + 1, drop = FALSE])
+    
+    P_smooth[, , t] <- P_filt_t + 
+      J_t %*% (P_smooth[, , t + 1] - P_pred_tp1) %*% t(J_t)
+    
+    P_smooth[, , t] <- 0.5 * (P_smooth[, , t] + t(P_smooth[, , t]))
+  }
+  
+  list(m_smooth = m_smooth, P_smooth = P_smooth)
+}
+
+# ff dat klote algoritme runnen
+EM_step_2d <- function(F_mat, Q, R, Y) {
+  d  <- nrow(Y)
+  Tn <- ncol(Y)
+  
+  # E-step: filter & smoother
+  kf <- kalman_filter_2d(F_mat, Q, R, Y)
+  ks <- kalman_smoother_2d(F_mat, Q, kf)
+  
+  m_pred_all <- kf$m_pred_all    # xi_{t|t-1}
+  P_pred_all <- kf$P_pred_all
+  m_filt_all <- kf$m_filt_all    # xi_{t|t}
+  P_filt_all <- kf$P_filt_all
+  m_smooth   <- ks$m_smooth      # xi_{t|T}
+  P_smooth   <- ks$P_smooth      # P_{t|T}
+  
+  loglik <- kf$loglik
+  
+  # Sufficient statistics
+  S_xx      <- matrix(0, d, d)   # sum E[x_t x_t']
+  S_xx_lag0 <- matrix(0, d, d)   # sum_{t=1}^{T-1} E[x_t x_t']
+  S_xx_lag1 <- matrix(0, d, d)   # sum_{t=2}^{T} E[x_t x_{t-1}']
+  
+  # E[x_t x_t'] terms
+  for (t in 1:Tn) {
+    mt <- matrix(m_smooth[, t], ncol = 1)
+    S_xx <- S_xx + (P_smooth[, , t] + mt %*% t(mt))
+    
+    if (t < Tn) {
+      S_xx_lag0 <- S_xx_lag0 + (P_smooth[, , t] + mt %*% t(mt))
+    }
+  }
+  
+  # Cross terms E[x_t x_{t-1}'] using slide formula (17)
+  for (t in 2:Tn) {
+    mt   <- matrix(m_smooth[, t], ncol = 1)
+    mtm1 <- matrix(m_smooth[, t - 1], ncol = 1)
+    
+    # Cov(x_t, x_{t-1} | Y) = P_t|T P_t|t-1^{-1} F P_{t-1|t-1}
+    P_tT     <- P_smooth[, , t]
+    P_t_tmin1 <- P_pred_all[, , t]    # P_{t|t-1}
+    P_tm1_tm1 <- P_filt_all[, , t - 1]
+    
+    cross_cov <- P_tT %*% solve(P_t_tmin1) %*% F_mat %*% P_tm1_tm1
+    
+    Exx_tm1 <- mt %*% t(mtm1) + cross_cov
+    
+    S_xx_lag1 <- S_xx_lag1 + Exx_tm1
+  }
+  
+  # M-step: update F
+  F_new <- S_xx_lag1 %*% solve(S_xx_lag0)
+  
+  # M-step: update Q
+  S11 <- matrix(0, d, d)
+  for (t in 2:Tn) {
+    mt <- matrix(m_smooth[, t], ncol = 1)
+    S11 <- S11 + (P_smooth[, , t] + mt %*% t(mt))
+  }
+  S10 <- S_xx_lag1
+  S00 <- S_xx_lag0
+  
+  Q_new <- (S11 - F_new %*% t(S10) - S10 %*% t(F_new) + F_new %*% S00 %*% t(F_new)) / (Tn - 1)
+  Q_new <- 0.5 * (Q_new + t(Q_new))   # symmetrise
+  
+  # M-step: update R (H = I)
+  R_new <- matrix(0, d, d)
+  for (t in 1:Tn) {
+    mt  <- m_smooth[, t]
+    res <- matrix(Y[, t] - mt, ncol = 1)
+    R_new <- R_new + (res %*% t(res) + P_smooth[, , t])
+  }
+  R_new <- R_new / Tn
+  R_new <- 0.5 * (R_new + t(R_new))
+  
+  list(F = F_new, Q = Q_new, R = R_new, loglik = loglik)
+}
+
+
+# habba
+d  <- nrow(Y)
+Tn <- ncol(Y)
+
+# Starting values from assignment
+F_em <- 0.8 * diag(d)
+R_em <- 2   * diag(d)
+Q_em <- 3   * diag(d)
+
+maxiter <- 200
+for (iter in 1:maxiter) {
+  
+  step <- EM_step_2d(F_em, Q_em, R_em, Y)
+  
+  F_em   <- step$F
+  Q_em   <- step$Q
+  R_em   <- step$R
+  loglik <- step$loglik
+  
+  if (iter %in% c(20, 200)) {
+    cat("  --- Snapshot at iteration", iter, "---\n")
+    cat("  F:\n"); print(F_em)
+    cat("  Q:\n"); print(Q_em)
+    cat("  R:\n"); print(R_em)
+    cat("  loglik =", loglik, "\n")
+  }
+}
+
