@@ -22,7 +22,7 @@ nll <- function(par, y) {
 start <- c(mu, sigma_1, sigma_2, p1)
 
 mle <- optim(par = start, fn = nll, y = y,
-             method = "L-BFGS-B", #deze moeten we ff want anders kan je die bounds er niet op zetten
+             method = "L-BFGS-B", #deze moeten we gebruiken want anders kan je die bounds er niet op zetten
              lower = c(-Inf, 0, 0, 0),      
              upper = c( Inf,  Inf,  Inf, 1)
              )
@@ -109,6 +109,7 @@ print(fit2$par)
 print(fit2$value)
 print(fit3$par)
 print(fit3$value)
+
 # QUESTION 1c -------------------------------------------------------------
 # Extract estimated p11 and p22 with initialisation in state 1
 p11_hat_1 <- fit1$par[1]
@@ -183,7 +184,7 @@ Hamilton_filter_mv <- function(p11, p22, mu_list, Sigma_list, xi0_in, Y) {
   
   P <- matrix(c(p11, 1 - p22,
                 1 - p11, p22), nrow = 2, byrow = TRUE)
-  
+
   predictedxi <- matrix(NA_real_, nrow = K, ncol = Tn + 1)
   filteredxi  <- matrix(NA_real_, nrow = K, ncol = Tn)
   likelihood  <- matrix(NA_real_, nrow = K, ncol = Tn)
@@ -246,10 +247,10 @@ Hamilton_smoother_mv <- function(p11, p22, mu_list, Sigma_list, xi0_in, Y) {
   Pstar[, , 1] <- P * (num1 / denom1)
   
   for (t in 2:Tn) {
-    denom <- as.numeric(predictedxi[, t] %*% c(1, 1))
     num   <- smoothedxi[, t, drop = FALSE] %*% 
-      t(filteredxi[, t - 1, drop = FALSE])
-    Pstar[, , t] <- P * (num / denom)
+      t(filteredxi[, t - 1, drop = FALSE])  # ξ_{t|T} ξ_{t-1|t-1}^T
+    denom_mat <- predictedxi[, t, drop = FALSE] %*% matrix(1, 1, K)  # repeat ξ_{t|t-1} across columns
+    Pstar[, , t] <- P * (num / denom_mat)  # elementwise
   }
   
   list(smoothedxi = smoothedxi,
