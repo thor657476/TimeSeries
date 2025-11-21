@@ -1,3 +1,8 @@
+# Timo Stuij 612337
+# Pien Küthe 648127
+# Job van Onna 638473
+# Thor Hogerbrugge 657476
+
 # Here is the solution to exercise 1
 # First one has to download the data from the 'Data.R' file
 

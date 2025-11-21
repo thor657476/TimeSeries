@@ -1,3 +1,8 @@
+# Timo Stuij 612337
+# Pien Küthe 648127
+# Job van Onna 638473
+# Thor Hogerbrugge 657476
+
 # Data inladen 
 library(readr)
 df <- read_csv("growth_data.csv")
