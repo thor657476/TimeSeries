@@ -343,14 +343,6 @@ for (k in 1:K) {
 msfe_2c <- mean(forecast_errors_sq)
 cat("\nMean Squared Forecast Error (MSFE) =", round(msfe_2c, 6), "\n")
 
-# Bram's reference results for comparison:
-# h1_hat  = 2.6886
-# h2_hat  = 1.8869
-# r1_hat  = 0.0008
-# r2_hat  = 3.4522
-# loglik  = -1309.5926
-# OOS MSFE (K=12, both series) = 8.0258
-
 
 # QUESTION 2d -------------------------------------------------------------
 # Kalman filter for a multivariate local level / VAR(1)-type state space with H = I
