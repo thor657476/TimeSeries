@@ -348,6 +348,12 @@ for (k in 1:K) {
 msfe_2c <- mean(forecast_errors_sq)
 cat("\nMean Squared Forecast Error (MSFE) =", round(msfe_2c, 6), "\n")
 
+msfe_y1 <- mean(forecast_errors_sq[1, ])
+msfe_y2 <- mean(forecast_errors_sq[2, ])
+
+cat("MSFE for GDP growth (y1) =", round(msfe_y1, 6), "\n")
+cat("MSFE for Consumption growth (y2) =", round(msfe_y2, 6), "\n")
+
 
 # QUESTION 2d -------------------------------------------------------------
 # Kalman filter for a multivariate local level / VAR(1)-type state space with H = I
